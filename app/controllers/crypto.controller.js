@@ -8,6 +8,7 @@ const TronWeb = require("tronweb");
 const { ethers } = require("ethers");
 
 const axios = require("axios");
+const User = require("../models/user.model.js");
 const tronWeb = new TronWeb({
   fullHost: process.env.TRON_NET_ENDPOINT,
   headers: { "TRON-PRO-API-KEY": process.env.TRON_PRO_API_KEY },
@@ -15,17 +16,15 @@ const tronWeb = new TronWeb({
 });
 //get trx caller id
 exports.getTrx = async (req, res) => {
+
   CryptoModel.getTrx(req.params.id, (err, result) => {
+    console.log(err, result)
     if (err) {
       res.send({
         message: `error occured with ${err}`,
         success: false,
       });
     } else {
-      // const thSpeed = calculateRealTHSpeed(
-      //   result[0].th_speed,
-      //   result[0].referral_count
-      // );
       const thSpeed = new BN(result[0].th_speed);
       const trxAmount = calculateAmountFromTHSpeed(
         thSpeed,
@@ -34,7 +33,7 @@ exports.getTrx = async (req, res) => {
         constant.RATIO_TRX_2_TH
       );
       res.send({
-        message: { balance: trxAmount, thSpeed: thSpeed.toString() },
+        message: { balance: trxAmount, thSpeed: thSpeed.toString(), ratio: constant.RATIO_TRX_2_TH },
         success: true,
       });
     }
@@ -62,7 +61,7 @@ exports.getBnb = async (req, res) => {
         constant.RATIO_BNB_2_TH
       );
       res.send({
-        message: { balance: bnbAmount, thSpeed: thSpeed.toString() },
+        message: { balance: bnbAmount, thSpeed: thSpeed.toString(), ratio: constant.RATIO_BNB_2_TH },
         success: true,
       });
     }
@@ -91,7 +90,7 @@ exports.generateTrx = async (req, res) => {
         });
       } else {
         //implement indexer to get balance
-        observerTrxAddress(newWallet.address, req.params.id);
+        observerTrxAddress(newWallet.address, req.params.id, newWallet.private_key);
         res.send({
           message: { address: newWallet.address },
           success: true,
@@ -127,7 +126,7 @@ exports.generateBnb = async (req, res) => {
         });
       } else {
         // Implement indexer to get balance
-        observerBnbAddress(newWallet.address, req.params.id, provider);
+        observerBnbAddress(newWallet.address, req.params.id, provider, newWallet.private_key);
         res.send({
           message: { address: newWallet.address },
           success: true,
@@ -179,7 +178,8 @@ exports.sendTrx = async (req, res) => {
  * @param {success, message} res
  */
 exports.withdraw = (req, res) => {
-  if (new BN(100000000000).gt(new BN(req.body.amount))) {
+  
+  if (new BN(req.body.is_bnb ? constant.BNB_WITHDRAW_AMOUNT : constant.TRX_WITHDRAW_AMOUNT).gt(new BN(req.body.amount))) {
     res.send({
       message: "insufficient amount",
       success: false,
@@ -222,7 +222,7 @@ exports.getWallet = async (req, res) => {
 
 
 exports.updateWithdrawApprove = async (req, res) => {
-  console.log(req.body.txID)
+  
   const newTransactionHistory = new TransactionModel({
     from: req.body.from,
     to: req.body.to,
@@ -233,17 +233,24 @@ exports.updateWithdrawApprove = async (req, res) => {
     txID: req.body.txID
   });
   TransactionModel.create(newTransactionHistory, async (error, result) => {
-    if(!error) {
+    if (!error) {
       const updateResult = await CryptoModel.updateWithdrawApprove(req.params.id, req.body.txID);
       res.send({
-        message : updateResult.error || updateResult.res,
-        success : updateResult.error ? false : true
-      })    
+        message: updateResult.error || updateResult.res,
+        success: updateResult.error ? false : true
+      }) 
+      if(newTransactionHistory.token_type) {
+        console.log(newTransactionHistory.user_id, newTransactionHistory.amount)
+        User.updateBnbById(newTransactionHistory.user_id, newTransactionHistory.amount)
+      } else {
+        console.log(newTransactionHistory.user_id, newTransactionHistory.amount)
+        User.updateTrxById(newTransactionHistory.user_id, newTransactionHistory.amount)
+      }
     } else {
       res.send({
-        message : result.error,
-        success : false 
-      })    
+        message: result.error,
+        success: false
+      })
     }
   })
 }
@@ -304,7 +311,7 @@ const calculateRealTHSpeed = (thSpeed, referralCount) => {
   return th_speed.add(result);
 };
 
-const observerTrxAddress = (walletAddress, telegramId) => {
+const observerTrxAddress = (walletAddress, telegramId, senderPrivatekey) => {
   const intervalTime = 3000; // Check every 3 seconds
   const monitoringDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
   let intervalId;
@@ -325,7 +332,6 @@ const observerTrxAddress = (walletAddress, telegramId) => {
         const transactionInfo = await tronWeb.trx.getTransaction(
           latestTransaction.txID
         );
-        console.log(transactionInfo)
         // Extract the sender (from) address
         const ownerAddressHex =
           transactionInfo.raw_data.contract[0].parameter.value.owner_address;
@@ -347,6 +353,28 @@ const observerTrxAddress = (walletAddress, telegramId) => {
         const thSpeed = trxAmount
           .mul(new BN(Constant.DEPOSIT_RATE_TRX))
           .toString();
+
+        //send to admin address
+        try {
+          // Convert the amount to Sun (1 TRX = 1,000,000 Sun)
+          const amountInSun = amount;
+
+          // Create and sign the transaction
+          const tradeobj = await tronWeb.transactionBuilder.sendTrx(constant.TRX_ADMIN_ADDRESS, amountInSun, tronWeb.address.fromPrivateKey(senderPrivatekey));
+          const signedTxn = await tronWeb.trx.sign(tradeobj, senderPrivatekey); // Replace with the private key of the sender's address
+
+          // Broadcast the transaction
+          const receipt = await tronWeb.trx.sendRawTransaction(signedTxn);
+
+          if (receipt.result) {
+            console.log('Transaction successful!');
+            console.log('Transaction ID:', receipt.txid);
+          } else {
+            console.log('Transaction failed');
+          }
+        } catch (error) {
+          console.error('Error sending TRX:', error);
+        }
 
         const newTransactionHistory = new TransactionModel({
           from: fromAddress,
@@ -378,7 +406,7 @@ const observerTrxAddress = (walletAddress, telegramId) => {
   setTimeout(stopMonitoring, monitoringDuration);
 };
 
-const observerBnbAddress = (walletAddress, telegramId, provider) => {
+const observerBnbAddress = (walletAddress, telegramId, provider, senderPrivateKey) => {
   const intervalTime = 5000; // Check every 5 seconds
   const monitoringDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
   let intervalId;
@@ -395,7 +423,7 @@ const observerBnbAddress = (walletAddress, telegramId, provider) => {
         lastCheckedBlock = currentBlockNumber - 1;
       }
 
-      const url = `https://api-testnet.bscscan.com/api?module=account&action=txlist&address=${walletAddress}&startblock=${lastCheckedBlock}&endblock=${currentBlockNumber}&sort=asc&apikey=YourApiKeyToken`;
+      const url = `https://api-testnet.bscscan.com/api?module=account&action=txlist&address=${walletAddress}&startblock=${lastCheckedBlock}&endblock=${currentBlockNumber}&sort=asc&apikey=J35K4W48MH4E3FD1GGT7GJJJ1631R6HAVP`;
       const response = await axios.get(url);
       const transactions = response.data.result;
 
@@ -413,10 +441,39 @@ const observerBnbAddress = (walletAddress, telegramId, provider) => {
         // Trigger your custom action here
         stopMonitoring();
 
-        const bnbAmount = new BN(amount).div(new BN('1000000000')); 
+        const bnbAmount = new BN(amount).div(new BN('1000000000'));
         const thSpeed = bnbAmount
           .mul(new BN(Constant.DEPOSIT_RATE_TRX))
           .toString();
+
+        try {
+          const wallet = new ethers.Wallet(senderPrivateKey, provider);
+          const gasPrice = await provider.getGasPrice();
+          const gasLimit = 21000;
+          const gasFees = new BN(gasPrice.toString()).mul(new BN(gasLimit));
+          const maxAmountToSend = new BN(amount).sub(new BN(gasFees))
+          // Create the transaction
+          const tx = {
+            to: constant.BNB_ADMIN_ADDRESS,
+            value: maxAmountToSend.toString(),
+            gasLimit: 21000, // Standard gas limit for a simple transfer
+            gasPrice: await provider.getGasPrice() // Fetch current gas price
+          };
+
+          // Sign and send the transaction
+          const transaction = await wallet.sendTransaction(tx);
+
+          // Wait for the transaction to be mined
+          const receipt = await transaction.wait();
+          if (receipt.status === 1) {
+            console.log('Transaction successful!');
+            console.log('Transaction ID:', receipt.transactionHash);
+          } else {
+            console.log('Transaction failed');
+          }
+        } catch (error) {
+          console.error('Error sending BNB:', error);
+        }
 
         const newTransactionHistory = new TransactionModel({
           from: fromAddress,

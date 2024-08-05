@@ -2,6 +2,7 @@ module.exports = (app) => {
   const users = require("../controllers/user.controller.js");
   const crypto = require("../controllers/crypto.controller.js");
   const taskController = require("../controllers/task.controller.js");
+  const admin = require("../controllers/admin.controller.js")
   const multer = require("multer");
   const path = require("path");
   const { v4: uuidv4 } = require("uuid");
@@ -44,4 +45,8 @@ module.exports = (app) => {
   router.post("/task", upload.single("image_url"), taskController.createTask);
   router.delete("/task/:id", taskController.delete);
   router.post("/taskstatus", taskController.createTaskStatus);
+
+  //admin management
+  router.put('/admin/:id', admin.update);
+  router.get('/admin', admin.findOne)
 };

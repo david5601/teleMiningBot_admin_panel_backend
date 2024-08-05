@@ -1,5 +1,6 @@
 const pool = require("./db.js");
 const bcrypt = require("bcrypt");
+const BN = require("bn.js");
 
 // Constructor
 const User = function (user) {
@@ -14,7 +15,6 @@ const User = function (user) {
 
 User.register = async (newUser, result) => {
   let connection;
-console.log({newUser})
   try {
     connection = await pool.getConnection();
 
@@ -87,7 +87,6 @@ User.login = async (email, password, result) => {
 // Login method
 User.auth = async (user, referral_id, result) => {
   let connection;
-
   try {
     connection = await pool.getConnection();
     const loginQuery = "SELECT * FROM tbl_user WHERE telegram_id = ?";
@@ -96,13 +95,14 @@ User.auth = async (user, referral_id, result) => {
     if (res.length) {
       result(null, {...res[0], exist: true});
     } else {
+      console.log(user)
       const newUser = new User({ ...user, referral_id });
+      console.log(newUser)
       const insertQuery = "INSERT INTO tbl_user SET ?";
       const [insertRes] = await connection.query(insertQuery, newUser);
 
       const getUserQuery = "SELECT * FROM tbl_user WHERE id = ?";
       const [newUserRes] = await connection.query(getUserQuery, [insertRes.insertId]);
-
       result(null, {...newUserRes[0], exist: false});
     }
   } catch (err) {
@@ -241,4 +241,97 @@ User.getTotalReferral = async (telegram_id) => {
   }
 
 }
+
+User.updateTrxById = async (userTelegramId, approvedTrx) => {
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    const getQuery = `SELECT trx FROM tbl_user WHERE telegram_id = ?`;
+    const [res] = await connection.query(getQuery, [userTelegramId]);
+    console.log("---------------------",res.length)
+    if (res.length > 0) {
+      const query = `UPDATE tbl_user SET trx = ? WHERE telegram_id = ?`;
+      const updatedTrx = new BN(res[0].trx).sub(new BN(approvedTrx)).toString();
+      console.log("---------------------",updatedTrx)
+      const [updateRes] = await connection.query(query, [
+        updatedTrx,
+        userTelegramId,
+      ]);
+      return {error: null, res: updateRes};
+    } else {
+      return {error: new Error("User not found"), res: null};
+    }
+  } catch (err) {
+    return {error: err, res: null};
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+User.updateBnbById = async (userTelegramId, approvedBnb) => {
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    const getQuery = `SELECT bnb FROM tbl_user WHERE telegram_id = ?`;
+    const [res] = await connection.query(getQuery, [userTelegramId]);
+
+    if (res.length > 0) {
+      const query = `UPDATE tbl_user SET bnb = ? WHERE telegram_id = ?`;
+      const updatedBnb = new BN(res[0].bnb).sub(new BN(approvedBnb)).toString();
+      const [updateRes] = await connection.query(query, [
+        updatedBnb,
+        userTelegramId,
+      ]);
+      return {error: null, res: updateRes};
+    } else {
+      return {error: new Error("User not found"), res: null};
+    }
+  } catch (err) {
+    return {error: err, res: null};
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+User.updateAdminData = async (data, result) => {
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+
+      const query = `UPDATE tbl_admin SET trx_address = ?, bnb_address = ?, trx_withdraw_amount = ?, bnb_withdraw_amount = ? WHERE id = ?`;
+      const [updateRes] = await connection.query(query, [
+        data.trx_address, data.bnb_address, data.trx_withdraw_amount, data.bnb_withdraw_amount,  data.id
+      ]);
+      result(null, updateRes);
+  } catch (err) {
+    result(err, null);
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+// Find user by ID
+User.findAdminDataById = async (id, result) => {
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    const query = "SELECT * FROM tbl_admin WHERE id = ?";
+    const [res] = await connection.query(query, [id]);
+
+    if (res.length) {
+      result(null, res[0]);
+    } else {
+      result({ kind: "not_found" }, null);
+    }
+  } catch (err) {
+    result(err, null);
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
 module.exports = User;

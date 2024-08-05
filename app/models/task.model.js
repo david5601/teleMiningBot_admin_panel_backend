@@ -49,6 +49,7 @@ Task.getTaskByTelegramId = async (telegramId) => {
                     t.id AS task_id,
                     t.name AS task_name,
                     t.bonus,
+                    t.image_url,
                     t.created_at AS task_created_at,
                     t.updated_at AS task_updated_at,
                     ts.telegram_user_id,

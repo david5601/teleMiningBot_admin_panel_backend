@@ -6,7 +6,7 @@ exports.getTasks = async (req, res) => {
   const taskResult = await TaskModel.getTaskByTelegramId(userTelegramId);
   res.send({
     message: taskResult.res,
-    success: taskResult.error ? true : false
+    success: taskResult.error ? false : true
   })
 }
 

@@ -2,6 +2,8 @@ const User = require("../models/user.model.js");
 const CryptoModel = require("../models/crypto.model.js")
 const TransactionModel = require("../models/transaction.model.js")
 const BN = require("bn.js");
+const {BigNumber} = require("bignumber.js");
+
 const constant = require("../config/constant.js");
 // Register a new user
 exports.register = (req, res) => {
@@ -121,7 +123,7 @@ exports.findAll = (req, res) => {
 
 // Find a single User by Id
 exports.findOne = (req, res) => {
-  User.findById(req.params.id, (err, data) => {
+  User.findAdminDataById(req.query.id, (err, data) => {
     if (err) {
       if (err.kind === "not_found") {
         res.status(404).send({
@@ -145,7 +147,7 @@ exports.update = (req, res) => {
     });
   }
 
-  User.updateById(req.params.id, new User(req.body), (err, data) => {
+  User.updateAdminData({id: req.params.id,trx_address: req.body.trxAddress, bnb_address: req.body.bnbAddress, trx_withdraw_amount: new BigNumber("1000000000").multipliedBy(new BigNumber(req.body.trxWithdrawAmount)).toString() , bnb_withdraw_amount: new BigNumber(req.body.bnbWithdrawAmount).multipliedBy(new BigNumber("1000000000")).toString() }, (err, data) => {
     if (err) {
       if (err.kind === "not_found") {
         res.status(404).send({
@@ -156,7 +158,13 @@ exports.update = (req, res) => {
           message: "Error updating User with id " + req.params.id,
         });
       }
-    } else res.send(data);
+    } else {
+      constant.BNB_ADMIN_ADDRESS = req.body.bnbAddress;
+      constant.TRX_ADMIN_ADDRESS = req.body.trxAddress;
+      constant.BNB_WITHDRAW_AMOUNT = new BigNumber(req.body.bnbWithdrawAmount).multipliedBy(new BigNumber("1000000000")).toString();
+      constant.TRX_WITHDRAW_AMOUNT = new BigNumber(req.body.trxWithdrawAmount).multipliedBy(new BigNumber("1000000000")).toString();
+      res.send(data)
+    };
   });
 };
 

@@ -109,7 +109,7 @@ Crypto.saveNewWithdraw = async (newWithdraw, result) => {
       INSERT INTO tbl_withdraw (telegram_id, is_bnb, amount, address)
       SELECT ?, ?, ?, ?/* other fields */
       WHERE NOT EXISTS (
-        SELECT 1 FROM tbl_withdraw WHERE telegram_id = ? AND is_bnb = ?
+        SELECT 1 FROM tbl_withdraw WHERE telegram_id = ? AND is_bnb = ? AND is_approved = 0
       );
     `;
 
