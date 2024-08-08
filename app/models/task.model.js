@@ -32,7 +32,8 @@ Task.createStatus = async (taskStatus) => {
     const query = `INSERT INTO tbl_task_status SET ?`;
 
     const [res] = await connection.query(query, taskStatus);
-    return {error: null, res};
+    const [getRes] = await connection.query(`SELECT t.* FROM tbl_task_status ts JOIN tbl_task t ON ts.task_id = t.id WHERE ts.id = ?`, [res.insertId]);
+    return {error: null, getRes};
   } catch (err) {
     return {error: err, res: null};
   } finally {
@@ -50,6 +51,8 @@ Task.getTaskByTelegramId = async (telegramId) => {
                     t.name AS task_name,
                     t.bonus,
                     t.image_url,
+                    t.link,
+                    t.type,
                     t.created_at AS task_created_at,
                     t.updated_at AS task_updated_at,
                     ts.telegram_user_id,

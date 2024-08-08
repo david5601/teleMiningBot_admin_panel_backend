@@ -1,3 +1,4 @@
+const Crypto = require("../models/crypto.model.js");
 const TaskModel = require("../models/task.model.js")
 const fs = require('fs');
 
@@ -26,11 +27,13 @@ exports.getAll = async (req, res) => {
  */
 exports.createTaskStatus = async (req, res) => {
   const userTelegramId = req.body.id;
-  const taskResult = await TaskModel.createStatus({telegram_user_id: userTelegramId, task_id: req.body.task_id, status: 1});
-  console.log(taskResult)
-  res.send({
-    message: taskResult.error || taskResult.res,
-    success: taskResult.error ? false : true
+  const taskResult =await TaskModel.createStatus({telegram_user_id: userTelegramId, task_id: req.body.task_id, status: 1});
+  Crypto.updateTHSpeed(userTelegramId, taskResult.getRes[0].bonus, (error, result) => {
+    res.send({
+      message: result.error || result.res,
+      success: error ? false : true
+    })
+  
   })
 }
 
@@ -42,7 +45,7 @@ exports.createTaskStatus = async (req, res) => {
 
 exports.createTask = async (req, res) => {
   //save db
-  const taskResult = await TaskModel.create({name: req.body.name, bonus: req.body.bonus, image_url: req.file.filename})
+  const taskResult = await TaskModel.create({name: req.body.name, bonus: req.body.bonus, image_url: req.file.filename, link: req.body.link, type: req.body.type})
   res.send({
     message: taskResult.error || taskResult.res,
     success: taskResult.error ? false : true

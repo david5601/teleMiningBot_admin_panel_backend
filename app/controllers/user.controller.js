@@ -197,7 +197,6 @@ exports.auth = async (req, res) => {
     return;
   }
  
-
   User.auth({...req.body.user, th_speed: constant.DEFAULT_TH_SPEED}, req.query.start, (err, data) => {
     if (err) {
       res.status(200).send({

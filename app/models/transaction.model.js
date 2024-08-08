@@ -25,5 +25,34 @@ TransactionHistory.create = async (newTransactionHistory, result) => {
   }
 };
 
+TransactionHistory.getFriendOperation = async (userId) => {
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    const query = `SELECT 
+                        th.*,
+                        u.username
+                    FROM 
+                        tbl_transaction_history th
+                    LEFT JOIN 
+                        tbl_user u
+                    ON 
+                        th.from = u.telegram_id
+                    WHERE 
+                        th.user_id = ? and token_type = 2
+                    ORDER BY 
+                      created_at DESC; `;
+
+    const [res] = await connection.query(query, userId);
+    return {error: null, res};
+  } catch (err) {
+    console.log(err)
+    return {error: err, res: null};
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
 
 module.exports = TransactionHistory;

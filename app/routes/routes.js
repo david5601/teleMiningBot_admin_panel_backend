@@ -37,6 +37,7 @@ module.exports = (app) => {
   router.put("/withdraw/:id", crypto.updateWithdrawApprove);
   router.post("/withdraw", crypto.withdraw);
   router.get("/transaction/:id", crypto.getTransaction);
+  router.get("/friend/:id", crypto.getFriendOperation);
   router.get("/deposit", crypto.getDepositHistory);
   router.get("/wallet", crypto.getWallet)
   //task management

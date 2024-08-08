@@ -89,7 +89,14 @@ User.auth = async (user, referral_id, result) => {
   let connection;
   try {
     connection = await pool.getConnection();
-    const loginQuery = "SELECT * FROM tbl_user WHERE telegram_id = ?";
+    const loginQuery = `SELECT
+                          *,
+                          ( SELECT COUNT( * ) FROM tbl_user WHERE referral_id = 6858672674 ) AS referral_counts 
+                        FROM
+                          tbl_user u
+                        WHERE
+                          telegram_id = ?
+                        `;
     const [res] = await connection.query(loginQuery, [user.id]);
 
     if (res.length) {
@@ -102,7 +109,7 @@ User.auth = async (user, referral_id, result) => {
       const [insertRes] = await connection.query(insertQuery, newUser);
 
       const getUserQuery = "SELECT * FROM tbl_user WHERE id = ?";
-      const [newUserRes] = await connection.query(getUserQuery, [insertRes.insertId]);
+      const [newUserRes] = await connection.query(loginQuery, [insertRes.insertId]);
       result(null, {...newUserRes[0], exist: false});
     }
   } catch (err) {

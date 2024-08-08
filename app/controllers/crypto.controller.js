@@ -263,6 +263,13 @@ exports.getTransaction = async (req, res) => {
   });
 };
 
+exports.getFriendOperation = async (req, res) => {
+  const transactionResult = await TransactionModel.getFriendOperation(req.params.id);
+  res.send({
+    message: transactionResult.res || transactionResult.error,
+    success: transactionResult.error ? false : true,
+  });
+};
 exports.getDepositHistory = async (req, res) => {
   const depositHistoryResult = await CryptoModel.getDepositHistory();
   console.log(depositHistoryResult)
